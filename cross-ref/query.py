@@ -1,5 +1,6 @@
 from habanero import Crossref
 import time
+import json 
 
 # Initialize Crossref API client
 cr = Crossref(mailto="hujoshi2@illinois.edu", timeout=50)
@@ -75,39 +76,16 @@ def resolve_doi(doi):
 
     return (response, time.time_ns() - start)
 
-def fetch_citations(doi):
-    # Fetch citation data for a DOI
-    response = cr.works(doi=doi)
-    return response["message"]["items"][0]["is-referenced-by-count"]
-
 def search_abstracts(query):
     # Search for abstracts related to a specific query
-    return cr.works(query=query, select=["DOI", "abstract"])
+    response = None
+    start = time.time_ns()
+    try :
+        response = cr.works(query=query, select=["DOI", "abstract"], filter={"has-abstract": True, "from-pub-date": "2024-01-01", "until-pub-date": "2024-12-31"})
+    except Exception:
+        response = None
 
-# Example usage
-doi = "10.48550/arXiv.1706.03762"
-issn = "979-8-4007-0436-9"
-author_name = "Jakob Uszkoreit"
-affiliation = "University of Wisconsin-Madison"
-query = "reinforcement learning"
-
-# print("Fetching Metadata:")
-# print(fetch_metadata(doi))
-
-# print("\nFetching Journal Metadata:")
-# print(fetch_journal_metadata(issn))
-
-# print("\nSearching Authors:")
-# print(search_authors(author_name))
-
-# print("\nFetching Affiliation Data:")
-# print(fetch_affiliation_data(affiliation))
-
-# print("\nResolving DOI:")
-# print(resolve_doi(doi))
-
-# print("\nFetching Citation Data:")
-# print(fetch_citations(doi))
+    return (response, time.time_ns() - start)
 
 # print("\nSearching Abstracts:")
 # print(search_abstracts(query))
@@ -123,43 +101,63 @@ def get_base_validity_object():
         "citationCount": None, \
         "dateTime": None}
 
-foundResults = []
-with open("doi.txt", "r") as file:
-    dois = file.readlines()
-    for doi in dois:
-        # resolve doi
-        temp = get_base_validity_object()
-        author = None
-        (output, timeDoi) = resolve_doi(doi.strip())
-        temp["resolvedDoi"] = (output, timeDoi)
-        if (output):
-            # check issn and search journal metadata by issn            
-            issnValue = get_issn(output)
-            temp["extractedISBN"] = issnValue
-            
-            (journalMetadata, timeJournalMetadata) = fetch_journal_metadata(issnValue)
-            temp["journalMetadata"] = (journalMetadata, timeJournalMetadata)
-            
-            # get first author name
-            author = get_first_author_name(output)
-            temp["firstAuthorName"] = author
-            
-            if (author):
-                (authorInfo, authorInfoTime) = search_authors(author_name)
-                temp["firstAuthorInfo"] = (authorInfo, authorInfoTime)
+def evaluateDoiBasedQueries():
+    with open("doi.txt", "r") as file:
+        foundResults = []
+        dois = file.readlines()
+        for doi in dois:
+            # resolve doi
+            doi = doi.strip()
+            temp = get_base_validity_object()
+            author = None
+            (output, timeDoi) = resolve_doi(doi)
+            temp["resolvedDoi"] = {"output" : output, "time" : timeDoi}
+            if (output):
+                # check issn and search journal metadata by issn            
+                issnValue = get_issn(output)
+                temp["extractedISBN"] = issnValue
                 
-                affiliation = get_first_author_affiliation(output)
-                temp["firstAuthorAffiliation"] = affiliation
+                (journalMetadata, timeJournalMetadata) = fetch_journal_metadata(issnValue)
+                temp["journalMetadata"] = {"output": journalMetadata, "time" : timeJournalMetadata}
                 
-                (affilitationInfo, affiliationInfoTime) = fetch_affiliation_data(affiliation)
-                temp["firstAuthorAffiliationInfo"] = (affilitationInfo, affiliationInfoTime)
+                # get first author name
+                author = get_first_author_name(output)
+                temp["firstAuthorName"] = author
                 
-            temp["citationCount"] = get_citation_count(output)
-            temp["dateTime"] = get_date_time(output)
+                if (author):
+                    (authorInfo, authorInfoTime) = search_authors(author)
+                    temp["firstAuthorInfo"] = {"output": authorInfo, "time": authorInfoTime}
+                    
+                    affiliation = get_first_author_affiliation(output)
+                    temp["firstAuthorAffiliation"] = affiliation
+                    
+                    (affilitationInfo, affiliationInfoTime) = fetch_affiliation_data(affiliation)
+                    temp["firstAuthorAffiliationInfo"] = {"output": affilitationInfo, "time": affiliationInfoTime}
+                    
+                temp["citationCount"] = get_citation_count(output)
+                temp["dateTime"] = get_date_time(output)
+            
+            foundResults.append(temp)
+            print(doi.strip())
+            time.sleep(2)
         
-        foundResults.append({doi : temp})
-        print(doi.strip())
-        time.sleep(2)
+        with open("stats.json", "w", encoding='utf-8') as file:
+            file.write(json.dumps(foundResults))
     
-with open("stats.json", "w", encoding='utf-8') as file:
-    file.write(str(foundResults))
+def evaluateTextSearch():
+    with open("search.json", "w", encoding='utf-8') as file:
+        queryItems = ["reinforcement learning", "fault injection", "distributed data processing", "Autonomous vehicle", "Network contention"]
+        
+        abstractResults = []
+        
+        for query in queryItems:
+            (output, timeTaken) = search_abstracts(query)
+            abstractResults.append({"query": query, "result": output, "time": timeTaken})
+            print("Searched for ", {query})
+            time.sleep(2)
+        
+        file.write(json.dumps(abstractResults))
+        
+if __name__ == '__main__':
+    evaluateDoiBasedQueries()
+    evaluateTextSearch()
