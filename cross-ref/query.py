@@ -81,7 +81,9 @@ def search_abstracts(query):
     response = None
     start = time.time_ns()
     try :
-        response = cr.works(query=query, select=["DOI", "abstract"], filter={"has-abstract": True, "from-pub-date": "2024-01-01", "until-pub-date": "2024-12-31"})
+        response = cr.works(query=query, \
+            select=["DOI", "abstract", "published"], \
+            filter={"has-abstract": True, "from-pub-date": "2024-01-01", "until-pub-date": "2024-12-31"})
     except Exception:
         response = None
 
