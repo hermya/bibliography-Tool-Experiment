@@ -119,8 +119,9 @@ def evaluateDoiBasedQueries():
                 issnValue = get_issn(output)
                 temp["extractedISBN"] = issnValue
                 
-                (journalMetadata, timeJournalMetadata) = fetch_journal_metadata(issnValue)
-                temp["journalMetadata"] = {"output": journalMetadata, "time" : timeJournalMetadata}
+                if issnValue:
+                    (journalMetadata, timeJournalMetadata) = fetch_journal_metadata(issnValue)
+                    temp["journalMetadata"] = {"output": journalMetadata, "time" : timeJournalMetadata}
                 
                 # get first author name
                 author = get_first_author_name(output)
